@@ -32,6 +32,7 @@ hostPath = os.path.join(os.path.expanduser('~'),'Desktop','b站视频')
 hostUrl = "https://www.bilibili.com/"
 bangumi_referer = "https://www.bilibili.com/bangumi/play/"
 video_referer = "https://www.bilibili.com/video/"
+ffmpeg_path = "./ffmpeg/bin/ffmpeg"
 # 会话对象
 session = requests.Session()
 # 用于请求视频json数据的headers
@@ -136,46 +137,6 @@ def getVideoName(text):
 # 获取资源文件的大小
 def getResourceSize(url):
     return int(session.get(url,headers=html_headers).headers.get("Content-Length","0"))
-
-def download(url, start, end,file_path):
-    html_headers["Range"] = "bytes={}-{}".format(start, end)
-    file_name = os.path.join(file_path,threading.current_thread().name)
-    res = session.get(url, headers=html_headers, stream=True, verify=False)
-    nowData = 0
-    if res.status_code == 206 or 200:
-        sumData = end-start
-        signal = chr(9632)  # 进度条的图形符号
-        singleData = sumData / 50  # 将数据等分
-        print("开始下载.....")
-        with open(file_name, "wb") as f:
-            for i in res.iter_content(1024):
-                f.write(i)
-                nowData += len(i)  # 更新已下载数据
-                signalCount = int(nowData / singleData)  # 设置符号块数量表示进度
-                print("\t已下载{0:d}/{1:d}Mb[{2:}]进度---{3:.1f}%".format(nowData // (2 ** 20), sumData // (2 ** 20),
-                                                                     signal * signalCount + ' ' * (50 - signalCount),
-                                                                     nowData / sumData * 100))
-
-def multi_download(resource_url,file_path,file_name,typeName):
-    length = getResourceSize(resource_url)
-    t_size = length//thread_nums
-    temp = 0
-    while length>=t_size:
-        thread_list.append(threading.Thread(target=download,args=(resource_url,temp,temp+t_size,file_path)))
-        length = length - t_size
-        temp = temp+t_size+1
-    if length!=0:
-        thread_list.append(threading.Thread(target=download,args=(resource_url,temp,temp+length,file_path)))
-    for t in thread_list:
-        t.start()
-    temp_file_list = [os.path.join(hostPath,i.name) for i in thread_list]
-    final_file_name = os.path.join(file_path,file_name)+"."+typeName
-    with open(final_file_name,"wb") as final_file:
-        for file_name in temp_file_list:
-            with open(file_name,"rb") as f:
-                final_file.write(f.read())
-    for file in temp_file_list:
-        os.remove(file)
 
 '''
 下载数据 指定    链接 名字 格式
@@ -305,18 +266,9 @@ def spiderAv():
 def mergeVideoAndAudio(Path,name,video_type_num,audio_type_num):
     fileName = Path+"/"+name
     print("正在合并视频")
-    cmd = 'ffmpeg -y -i "%s.%s"  -i "%s.%s" -vcodec copy -acodec copy "%s.mp4"' % \
-                (fileName,MEDIA_TYPE[audio_type_num],fileName,MEDIA_TYPE[video_type_num],fileName+"_hjt")
+    cmd = '%s -y -i "%s.%s"  -i "%s.%s" -vcodec copy -acodec copy "%s.mp4"' % \
+                (ffmpeg_path,fileName,MEDIA_TYPE[audio_type_num],fileName,MEDIA_TYPE[video_type_num],fileName+"_hjt")
     os.system(cmd)
-
-# 合并.flv文件
-def mergeFlv(Path,nameList):
-    # 创建 一个视频文件名列表 的文件
-    with open (Path+"path.txt","w",encoding="utf-8") as f:
-        for name in nameList:
-            flvFileName = name + '.flv'
-            f.write('file ' +"'{}'".format(flvFileName)+'\n')
-    print("正在合并视频")
 
 # 显示菜单
 def showMenu():
